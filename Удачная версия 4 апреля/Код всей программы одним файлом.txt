@@ -1,0 +1,500 @@
+Код файла anomaly_detection.py:
+
+def detect_anomalies(data, cart_weights, rek_limits):
+    anomalies = []
+    for idx, row in enumerate(data):
+        issues = []
+
+        # Проверка превышения лимита РЭК
+        if row["electricity"] > rek_limits["electricity"]:
+            issues.append("electricity")
+        if row["total_water"] > rek_limits["total_water"]:
+            issues.append("total_water")
+        if row["feed_water"] > rek_limits["feed_water"]:
+            issues.append("feed_water")
+
+        # Проверка резкого изменения для электричества: скачок больше 14.2 кВт/ч за сутки - аномалия
+        if idx > 0 and abs(row["electricity"] - data[idx - 1]["electricity"]) > 14.2:
+            issues.append("electricity")
+
+
+        # Проверка резкого изменения для общей воды: скачок больше 0.1 кубометра за сутки - аномалия
+        if idx > 0 and abs(row["total_water"] - data[idx - 1]["total_water"]) > 0.1:
+            issues.append("total_water")
+
+
+        # Проверка резкого изменения для комплексона: скачок больше 0.1 кубометра за сутки - аномалия
+        if idx > 0 and abs(row["feed_water"] - data[idx - 1]["feed_water"]) > 0.1:
+            issues.append("feed_water")
+
+    #===================================================================================================================
+
+        # Проверка неизменности данных для электричества: больше 3 ячеек неизменных данных подряд - аномалия
+        if idx > 2 and all(data[i]["electricity"] == row["electricity"] for i in range(idx - 2, idx)):
+            issues.append("electricity")
+
+
+        # Проверка неизменности данных для воды: больше 3 ячеек неизменных данных подряд - аномалия
+        if idx > 2 and all(data[i]["electricity"] == row["electricity"] for i in range(idx - 2, idx)):
+            issues.append("electricity")
+
+
+        # Проверка неизменности данных для комплексона: больше 3 ячеек неизменных данных подряд - аномалия
+        if idx > 2 and all(data[i]["electricity"] == row["electricity"] for i in range(idx - 2, idx)):
+            issues.append("electricity")
+
+
+        # Проверка температур по графику
+        temp_graph = load_temperature_graph()
+        expected_supply_temp = temp_graph.get(row["outdoor_temp"], {}).get("supply_temp")
+        expected_return_temp = temp_graph.get(row["outdoor_temp"], {}).get("return_temp")
+        if expected_supply_temp and row["supply_temp"] < expected_supply_temp:
+            issues.append("supply_temp")
+        if expected_return_temp and row["return_temp"] != expected_return_temp:
+            issues.append("return_temp")
+
+        if issues:
+            anomalies.append({idx: issues})
+
+    return anomalies
+
+# Загрузка данных из файла "Температурный график.xlsx"
+def load_temperature_graph():
+
+    import pandas as pd
+
+    graph = pd.read_excel("Температурный график.xlsx")
+    temp_graph = {}
+    for _, row in graph.iterrows():
+        temp_graph[row["Температура наружного воздуха"]] = {
+            "supply_temp": row["Температура воды в подающем трубопроводе"],
+            "return_temp": row["Температура воды в обратном трубопроводе"],
+        }
+    return temp_graph
+
+
+
+
+
+
+
+Код файла data_entry:
+import tkinter as tk
+from tkinter import ttk, messagebox
+from datetime import datetime, timedelta
+
+
+class DataEntryFrame(ttk.LabelFrame):
+    def __init__(self, parent, data, cart_weights, on_save):
+        super().__init__(parent, text="Ввод данных")
+        self.parent = parent
+        self.data = data
+        self.cart_weights = cart_weights
+        self.on_save = on_save
+
+        # Поля ввода
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Выбор котельной
+        ttk.Label(self, text="Котельная:").grid(row=0, column=0, padx=5, pady=5)
+        self.boiler_var = tk.StringVar()
+        boiler_options = list(self.cart_weights.keys())
+        ttk.Combobox(self, textvariable=self.boiler_var, values=boiler_options).grid(row=0, column=1, padx=5, pady=5)
+
+        # Поле ввода даты
+        ttk.Label(self, text="Дата (ДД-ММ-ГГГГ):").grid(row=1, column=0, padx=5, pady=5)
+        self.date_var = tk.StringVar()
+        ttk.Entry(self, textvariable=self.date_var).grid(row=1, column=1, padx=5, pady=5)
+
+        # Остальные поля
+        labels = [
+            "Расход электроэнергии", "Общий расход воды", "Расход воды на подпитку",
+            "Тележки с углём", "Тележки с золой", "Температура подачи воды",
+            "Температура обратной подачи воды", "Температура наружного воздуха"
+        ]
+        self.entries = {}
+        for i, label in enumerate(labels):
+            ttk.Label(self, text=label + ":").grid(row=i + 2, column=0, padx=5, pady=5)
+            var = tk.StringVar()
+            ttk.Entry(self, textvariable=var).grid(row=i + 2, column=1, padx=5, pady=5)
+            self.entries[label] = var
+
+        # Кнопка сохранения
+        ttk.Button(self, text="Сохранить данные", command=self.save_data).grid(row=len(labels) + 2, column=0, columnspan=2, pady=10)
+
+        # Кнопка настройки веса тележек
+        ttk.Button(self, text="Настроить вес тележек", command=self.configure_cart_weights).grid(row=len(labels) + 3, column=0, columnspan=2, pady=10)
+
+    def save_data(self):
+        date = self.date_var.get()
+        boiler = self.boiler_var.get()
+        if not date or not boiler:
+            messagebox.showerror("Ошибка", "Пожалуйста, заполните все обязательные поля.")
+            return
+
+        try:
+            current_date = datetime.strptime(date, "%d-%m-%Y")
+        except ValueError:
+            messagebox.showerror("Ошибка", "Неверный формат даты. Используйте ДД-ММ-ГГГГ.")
+            return
+
+        # Проверка на наличие данных за предыдущий день
+        previous_data = [
+            row for row in self.data
+            if
+            row["boiler"] == boiler and datetime.strptime(row["date"], "%d-%m-%Y") == current_date - timedelta(days=1)
+        ]
+
+        electricity_value = float(self.entries["Расход электроэнергии"].get() or 0)
+
+        if previous_data:
+            previous_electricity = previous_data[0]["electricity"]
+            if electricity_value < previous_electricity:
+                messagebox.showerror(
+                    "Ошибка",
+                    f"Значение расхода электроэнергии ({electricity_value}) меньше, чем за предыдущий день ({previous_electricity})."
+                )
+                return
+
+        # Создание новой строки данных
+        new_row = {
+            "date": date,
+            "boiler": boiler,
+            "electricity": electricity_value,
+            "total_water": float(self.entries["Общий расход воды"].get() or 0),
+            "feed_water": float(self.entries["Расход воды на подпитку"].get() or 0),
+            "coal_carts": int(self.entries["Тележки с углём"].get() or 0),
+            "ash_carts": int(self.entries["Тележки с золой"].get() or 0),
+            "supply_temp": float(self.entries["Температура подачи воды"].get() or 0),
+            "return_temp": float(self.entries["Температура обратной подачи воды"].get() or 0),
+            "outdoor_temp": float(self.entries["Температура наружного воздуха"].get() or 0),
+        }
+
+        # Добавляем новую строку в данные
+        self.data.append(new_row)
+        self.on_save()
+
+    def configure_cart_weights(self):
+        """Настройка веса тележек"""
+        weight_window = tk.Toplevel(self)
+        weight_window.title("Настройка веса тележек")
+
+        for i, (boiler, weight) in enumerate(self.cart_weights.items()):
+            ttk.Label(weight_window, text=f"{boiler}:").grid(row=i, column=0, padx=5, pady=5)
+            var = tk.StringVar(value=str(weight))
+            ttk.Entry(weight_window, textvariable=var).grid(row=i, column=1, padx=5, pady=5)
+            self.cart_weights[boiler] = var
+
+        def save_weights():
+            for boiler, var in self.cart_weights.items():
+                try:
+                    self.cart_weights[boiler] = float(var.get())
+                except ValueError:
+                    messagebox.showerror("Ошибка", f"Неверное значение веса для {boiler}.")
+                    return
+            messagebox.showinfo("Успех", "Веса тележек успешно обновлены!")
+            weight_window.destroy()
+
+        ttk.Button(weight_window, text="Сохранить", command=save_weights).grid(row=len(self.cart_weights), column=0, columnspan=2, pady=10)
+
+
+
+
+
+
+
+
+
+
+
+
+
+Код файла database.py:
+
+import sqlite3
+
+class DatabaseManager:
+    def __init__(self, db_file):
+        self.conn = sqlite3.connect(db_file)
+        self.cursor = self.conn.cursor()
+        self.create_table()
+
+    def create_table(self):
+        """Создание таблицы для хранения данных"""
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS boiler_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            boiler TEXT,
+            electricity REAL,
+            total_water REAL,
+            feed_water REAL,
+            coal_carts INTEGER,
+            ash_carts INTEGER,
+            supply_temp REAL,
+            return_temp REAL,
+            outdoor_temp REAL
+        )
+        """)
+        self.conn.commit()
+
+    def load_data(self):
+        """Загрузка данных из базы данных"""
+        self.cursor.execute("SELECT * FROM boiler_data")
+        rows = self.cursor.fetchall()
+        columns = [desc[0] for desc in self.cursor.description]
+        data = []
+        for row in rows:
+            data.append({columns[i]: row[i] for i in range(len(columns))})
+        return data
+
+    def save_data(self, data):
+        """Сохранение данных в базу данных"""
+        self.cursor.execute("DELETE FROM boiler_data")  # Очистка старых данных
+        for row in data:
+            self.cursor.execute("""
+            INSERT INTO boiler_data (date, boiler, electricity, total_water, feed_water, coal_carts, ash_carts, supply_temp, return_temp, outdoor_temp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row["date"], row["boiler"], row["electricity"], row["total_water"],
+                row["feed_water"], row["coal_carts"], row["ash_carts"],
+                row["supply_temp"], row["return_temp"], row["outdoor_temp"]
+            ))
+        self.conn.commit()
+
+
+
+
+
+
+
+
+
+Код файла main.py:
+
+
+
+import json
+import tkinter as tk
+from tkinter import ttk, messagebox
+from data_entry import DataEntryFrame
+from report_generator import ReportGeneratorFrame
+from database import DatabaseManager
+from anomaly_detection import detect_anomalies
+
+# Глобальные переменные
+DB_FILE = "boiler_data.db"
+DEFAULT_CART_WEIGHTS = {
+    "Котельная №6": 111,
+    "Котельная №9": 111,
+    "Котельная №11": 111,
+    "Котельная №12": 111,
+    "Котельная №15": 111,
+    "Котельная №17": 111,
+    "Котельная №18": 111,
+}
+
+class BoilerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Учёт данных котельных")
+        self.db_manager = DatabaseManager(DB_FILE)
+        self.cart_weights = DEFAULT_CART_WEIGHTS.copy()
+
+        # Загрузка данных
+        self.data = self.db_manager.load_data()
+        self.rek_limits = self.load_rek_limits()  # Загрузка данных РЭК
+
+        # Создание фреймов
+        self.data_entry_frame = DataEntryFrame(self.root, self.data, self.cart_weights, self.save_data)
+        self.report_generator_frame = ReportGeneratorFrame(self.root, self.data, self.cart_weights, self.detect_anomalies)
+
+        # Кнопка для ввода данных РЭК
+        ttk.Button(self.root, text="Настроить нормативы РЭК", command=self.configure_rek_limits).grid(row=1, column=0, columnspan=2, pady=10)
+
+        # Размещение фреймов
+        self.data_entry_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.report_generator_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+
+        # Настройка геометрии окна
+        self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+    @staticmethod
+    def load_rek_limits():
+        """Загрузка данных РЭК"""
+        try:
+            with open("rek_limits.json", "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {"electricity": 1000, "total_water": 500, "feed_water": 200}
+
+    def save_rek_limits(self):
+        """Сохранение данных РЭК"""
+        with open("rek_limits.json", "w") as f:
+            json.dump(self.rek_limits, f)
+
+    def configure_rek_limits(self):
+        """Настройка нормативов РЭК"""
+        rek_window = tk.Toplevel(self.root)
+        rek_window.title("Настройка нормативов РЭК")
+
+        labels = ["electricity", "total_water", "feed_water"]
+        entries = {}
+        for i, label in enumerate(labels):
+            ttk.Label(rek_window, text=label.capitalize() + ":").grid(row=i, column=0, padx=5, pady=5)
+            var = tk.StringVar(value=str(self.rek_limits[label]))
+            ttk.Entry(rek_window, textvariable=var).grid(row=i, column=1, padx=5, pady=5)
+            entries[label] = var
+
+        def save_limits():
+            for label, var in entries.items():
+                try:
+                    self.rek_limits[label] = float(var.get())
+                except ValueError:
+                    messagebox.showerror("Ошибка", f"Неверное значение для {label}.")
+                    return
+            self.save_rek_limits()
+            messagebox.showinfo("Успех", "Нормативы РЭК успешно обновлены!")
+            rek_window.destroy()
+
+        ttk.Button(rek_window, text="Сохранить", command=save_limits).grid(row=len(labels), column=0, columnspan=2, pady=10)
+
+    def detect_anomalies(self, filtered_data):
+        """Выявление аномалий"""
+        return detect_anomalies(filtered_data, self.cart_weights, self.rek_limits)
+
+    def save_data(self):
+        """Сохранение данных"""
+        self.db_manager.save_data(self.data)
+        messagebox.showinfo("Успех", "Данные успешно сохранены!")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = BoilerApp(root)
+    root.mainloop()
+
+
+
+
+
+
+
+Код файла report_generator.py:
+import os
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill
+
+class ReportGeneratorFrame(ttk.LabelFrame):
+    def __init__(self, parent, data, cart_weights, detect_anomalies):
+        super().__init__(parent, text="Формирование отчётов")
+        self.parent = parent
+        self.data = data
+        self.cart_weights = cart_weights
+        self.detect_anomalies = detect_anomalies
+
+        # Поля выбора периода
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Выбор периода
+        ttk.Label(self, text="Начальная дата:").grid(row=0, column=0, padx=5, pady=5)
+        self.start_date_var = tk.StringVar()
+        ttk.Entry(self, textvariable=self.start_date_var).grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(self, text="Конечная дата:").grid(row=1, column=0, padx=5, pady=5)
+        self.end_date_var = tk.StringVar()
+        ttk.Entry(self, textvariable=self.end_date_var).grid(row=1, column=1, padx=5, pady=5)
+
+        # Кнопка формирования отчёта
+        ttk.Button(self, text="Сформировать отчёт", command=self.generate_report).grid(row=2, column=0, columnspan=2, pady=10)
+
+    import os
+
+    def generate_report(self):
+        start_date = self.start_date_var.get()
+        end_date = self.end_date_var.get()
+
+        if not start_date or not end_date:
+            messagebox.showerror("Ошибка", "Пожалуйста, укажите начальную и конечную дату.")
+            return
+
+        try:
+            start_date_dt = pd.to_datetime(start_date, format="%d-%m-%Y")
+            end_date_dt = pd.to_datetime(end_date, format="%d-%m-%Y")
+        except ValueError:
+            messagebox.showerror("Ошибка", "Неверный формат даты. Используйте ДД-ММ-ГГГГ.")
+            return
+
+        # Фильтрация данных
+        filtered_data = [
+            row for row in self.data
+            if start_date_dt <= pd.to_datetime(row["date"], format="%d-%m-%Y") <= end_date_dt
+        ]
+
+        if not filtered_data:
+            messagebox.showinfo("Информация", "Нет данных за указанный период.")
+            return
+
+        # Обнаружение аномалий
+        anomalies = self.detect_anomalies(filtered_data)
+
+        # Создание Excel-файла
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Отчёт"
+
+        # Заголовки
+        headers = ["Дата", "Котельная", "Расход электроэнергии", "Общий расход воды", "Расход воды на подпитку",
+                   "Тележки с углём", "Тележки с золой", "Температура подачи воды", "Температура обратной подачи воды",
+                   "Температура наружного воздуха"]
+        ws.append(headers)
+
+        # Словарь для сопоставления английских ключей с русскими названиями столбцов
+        key_to_header = {
+            "date": "Дата",
+            "boiler": "Котельная",
+            "electricity": "Расход электроэнергии",
+            "total_water": "Общий расход воды",
+            "feed_water": "Расход воды на подпитку",
+            "coal_carts": "Тележки с углём",
+            "ash_carts": "Тележки с золой",
+            "supply_temp": "Температура подачи воды",
+            "return_temp": "Температура обратной подачи воды",
+            "outdoor_temp": "Температура наружного воздуха"
+        }
+
+        # Заполнение данных
+        red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        for row_idx, row in enumerate(filtered_data, start=2):
+            ws.append([
+                row["date"], row["boiler"], row["electricity"], row["total_water"], row["feed_water"],
+                row["coal_carts"], row["ash_carts"], row["supply_temp"], row["return_temp"], row["outdoor_temp"]
+            ])
+            for anomaly in anomalies:
+                for anomaly_row_idx, anomaly_keys in anomaly.items():
+                    if row_idx == anomaly_row_idx + 2:  # Смещение из-за заголовков
+                        for key in anomaly_keys:
+                            header = key_to_header.get(key)
+                            if header:
+                                col_idx = headers.index(header) + 1  # Найти индекс столбца
+                                ws.cell(row=row_idx, column=col_idx).fill = red_fill
+
+        # Автоматическая настройка ширины столбцов
+        for col in range(1, len(headers) + 1):
+            max_length = max(len(str(ws.cell(row=row, column=col).value)) for row in range(1, ws.max_row + 1))
+            ws.column_dimensions[chr(64 + col)].width = max_length + 2  # Подстройка ширины
+
+        # Сохранение файла
+        boiler_name = filtered_data[0]["boiler"]
+        file_name = f"{boiler_name} | {start_date} - {end_date}.xlsx"
+        reports_dir = "reports"
+        os.makedirs(reports_dir, exist_ok=True)  # Создание папки, если её нет
+        file_path = os.path.join(reports_dir, file_name)
+        wb.save(file_path)
+        messagebox.showinfo("Успешно!", f"Отчёт сохранён в файл: {file_path}")
