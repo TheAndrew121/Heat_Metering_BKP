@@ -5,13 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="55ce9ae8-d195-416d-9aba-24429649ff60" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/QW_heatMetering.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/QW_heatMetering.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Boiler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/anomaly_detection.py" beforeDir="false" afterPath="$PROJECT_DIR$/anomaly_detection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/createTempGraph.py" beforeDir="false" afterPath="$PROJECT_DIR$/createTempGraph.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/createTempGraph.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/data_entry.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_entry.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/database.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/report_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/report_generator.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -48,6 +49,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Python.Boiler.executor": "Run",
     "Python.anomaly_detection.executor": "Run",
     "Python.createTempGraph.executor": "Run",
     "Python.data_entry.executor": "Run",
@@ -55,11 +57,13 @@
     "Python.main.executor": "Run",
     "Python.report_generator.executor": "Run",
     "Python.test.executor": "Run",
+    "Python.tinkoff.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "main",
     "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/elAnd/Desktop/QW_heatMetering/.0_Материалы/Варианты/Потребление ресурса (1).xml",
     "run.code.analysis.last.selected.profile": "aDefault",
     "settings.editor.selected.configurable": "preferences.lookFeel"
   }
